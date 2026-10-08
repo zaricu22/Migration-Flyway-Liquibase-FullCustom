@@ -1,0 +1,91 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<databaseChangeLog
+        xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+        xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+        xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog
+            http://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-latest.xsd">
+
+    <!-- THE PORTABLE PATTERN (see failure-unique-null.xml and failure-cascade.xml):
+           1. "Unique, but NULL allowed many times": a unique constraint on PostgreSQL / MySQL,
+              a FILTERED unique index (WHERE ... IS NOT NULL) on SQL Server.
+           2. Multiple cascade paths: keep ONE cascade path, make the other NO ACTION, on ALL engines,
+              so the delete behavior is the same everywhere. -->
+
+    <!-- 1. Unique tax number, optional ......................................................... -->
+    <changeSet id="1-create-customer" author="demo">
+        <createTable tableName="customer">
+            <column name="id" type="int"><constraints primaryKey="true"/></column>
+            <column name="tax_number" type="varchar(20)"/>
+        </createTable>
+    </changeSet>
+
+    <changeSet id="2-unique-tax-number" author="demo" dbms="postgresql, mysql">
+        <addUniqueConstraint tableName="customer" columnNames="tax_number" constraintName="uq_customer_tax_number"/>
+    </changeSet>
+
+    <!-- createIndex has no WHERE clause, so the filtered index is raw SQL. -->
+    <changeSet id="2-unique-tax-number-mssql" author="demo" dbms="mssql">
+        <sql>CREATE UNIQUE INDEX uq_customer_tax_number ON customer (tax_number) WHERE tax_number IS NOT NULL</sql>
+        <rollback>
+            <sql>DROP INDEX uq_customer_tax_number ON customer</sql>
+        </rollback>
+    </changeSet>
+
+    <changeSet id="3-seed-customers" author="demo">
+        <insert tableName="customer"><column name="id" valueNumeric="1"/></insert>
+        <insert tableName="customer"><column name="id" valueNumeric="2"/></insert>
+        <insert tableName="customer">
+            <column name="id" valueNumeric="3"/>
+            <column name="tax_number" value="RS100"/>
+        </insert>
+    </changeSet>
+
+    <!-- 2. One cascade path per table pair ...................................................... -->
+    <changeSet id="4-create-tables" author="demo">
+        <createTable tableName="department">
+            <column name="id" type="int"><constraints primaryKey="true"/></column>
+        </createTable>
+        <createTable tableName="employee">
+            <column name="id" type="int"><constraints primaryKey="true"/></column>
+            <column name="department_id" type="int"><constraints nullable="false"/></column>
+        </createTable>
+        <createTable tableName="project">
+            <column name="id" type="int"><constraints primaryKey="true"/></column>
+            <column name="department_id" type="int"><constraints nullable="false"/></column>
+        </createTable>
+        <createTable tableName="assignment">
+            <column name="employee_id" type="int"><constraints nullable="false"/></column>
+            <column name="project_id" type="int"><constraints nullable="false"/></column>
+        </createTable>
+    </changeSet>
+
+    <changeSet id="5-fk-employee-department" author="demo">
+        <addForeignKeyConstraint constraintName="fk_employee_department" baseTableName="employee" baseColumnNames="department_id"
+                                 referencedTableName="department" referencedColumnNames="id" onDelete="CASCADE"/>
+    </changeSet>
+    <changeSet id="6-fk-project-department" author="demo">
+        <addForeignKeyConstraint constraintName="fk_project_department" baseTableName="project" baseColumnNames="department_id"
+                                 referencedTableName="department" referencedColumnNames="id" onDelete="CASCADE"/>
+    </changeSet>
+    <!-- the ONE cascade path to assignment: via employee -->
+    <changeSet id="7-fk-assignment-employee" author="demo">
+        <addForeignKeyConstraint constraintName="fk_assignment_employee" baseTableName="assignment" baseColumnNames="employee_id"
+                                 referencedTableName="employee" referencedColumnNames="id" onDelete="CASCADE"/>
+    </changeSet>
+    <!-- the other path: NO ACTION -> a project's assignments are deleted explicitly before the project -->
+    <changeSet id="8-fk-assignment-project" author="demo">
+        <addForeignKeyConstraint constraintName="fk_assignment_project" baseTableName="assignment" baseColumnNames="project_id"
+                                 referencedTableName="project" referencedColumnNames="id" onDelete="NO ACTION"/>
+    </changeSet>
+
+    <changeSet id="9-seed-departments" author="demo">
+        <insert tableName="department"><column name="id" valueNumeric="1"/></insert>
+        <insert tableName="employee"><column name="id" valueNumeric="1"/><column name="department_id" valueNumeric="1"/></insert>
+        <insert tableName="employee"><column name="id" valueNumeric="2"/><column name="department_id" valueNumeric="1"/></insert>
+        <insert tableName="project"><column name="id" valueNumeric="1"/><column name="department_id" valueNumeric="1"/></insert>
+        <insert tableName="project"><column name="id" valueNumeric="2"/><column name="department_id" valueNumeric="1"/></insert>
+        <insert tableName="assignment"><column name="employee_id" valueNumeric="1"/><column name="project_id" valueNumeric="1"/></insert>
+        <insert tableName="assignment"><column name="employee_id" valueNumeric="1"/><column name="project_id" valueNumeric="2"/></insert>
+        <insert tableName="assignment"><column name="employee_id" valueNumeric="2"/><column name="project_id" valueNumeric="2"/></insert>
+    </changeSet>
+</databaseChangeLog>

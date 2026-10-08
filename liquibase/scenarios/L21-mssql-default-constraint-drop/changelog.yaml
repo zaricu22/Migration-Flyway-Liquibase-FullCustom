@@ -1,0 +1,63 @@
+databaseChangeLog:
+  # THE PORTABLE PATTERN (see failure-demo.yaml for what goes wrong without it):
+  #   1. Drop the default with dropDefaultValue BEFORE dropping the column. On SQL Server Liquibase
+  #      looks up the constraint's generated name itself; elsewhere it's a plain DROP DEFAULT.
+  #   2. Prevention: give new defaults a NAME (defaultValueConstraintName), so later scripts know it.
+  - changeSet:
+      id: 1-create-customer
+      author: demo
+      changes:
+        - createTable:
+            tableName: customer
+            columns:
+              - column: { name: id, type: int, constraints: { primaryKey: true } }
+              - column: { name: name, type: varchar(100), constraints: { nullable: false } }
+
+  # The legacy column, as it exists in many databases: unnamed default.
+  - changeSet:
+      id: 2-add-is-vip-unnamed-default
+      author: demo
+      changes:
+        - sql:
+            sql: ALTER TABLE customer ADD is_vip smallint NOT NULL DEFAULT 0
+
+  # Prevention for new columns: a named default (only SQL Server uses the name).
+  - changeSet:
+      id: 3-add-status-named-default
+      author: demo
+      changes:
+        - addColumn:
+            tableName: customer
+            columns:
+              - column:
+                  name: status
+                  type: varchar(20)
+                  defaultValue: active
+                  defaultValueConstraintName: df_customer_status
+                  constraints: { nullable: false }
+
+  - changeSet:
+      id: 4-seed-customer
+      author: demo
+      changes:
+        - insert: { tableName: customer, columns: [ { column: { name: id, valueNumeric: 1 } }, { column: { name: name, value: Ana } } ] }
+        - insert: { tableName: customer, columns: [ { column: { name: id, valueNumeric: 2 } }, { column: { name: name, value: Marko } } ] }
+
+  # 1st: the default (columnDataType is required on some engines, e.g. MySQL and SQL Server)
+  - changeSet:
+      id: 5-drop-is-vip-default
+      author: demo
+      changes:
+        - dropDefaultValue:
+            tableName: customer
+            columnName: is_vip
+            columnDataType: smallint
+
+  # 2nd: the column, now without dependent objects on every engine
+  - changeSet:
+      id: 6-drop-is-vip
+      author: demo
+      changes:
+        - dropColumn:
+            tableName: customer
+            columnName: is_vip

@@ -1,0 +1,20 @@
+name: full-custom-migration
+
+# One PostgreSQL server, two databases:
+#   legacy_shop  the OLD system (source), with years of dirty data
+#   shop         the NEW system: raw / stg / mig schemas + the production tables (public)
+services:
+  postgres:
+    image: postgres:17
+    environment:
+      POSTGRES_USER: demo
+      POSTGRES_PASSWORD: demo
+    ports:
+      - "5435:5432"
+    volumes:
+      - ./:/migration:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U demo"]
+      interval: 2s
+      timeout: 3s
+      retries: 30

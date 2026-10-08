@@ -1,0 +1,74 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<databaseChangeLog
+        xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+        xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+        xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog
+            http://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-latest.xsd">
+
+    <!-- Table and column names that are reserved words somewhere:
+           user   reserved in PostgreSQL and SQL Server, NOT in MySQL
+           order  reserved everywhere
+           group  reserved everywhere
+           key    reserved in MySQL and SQL Server, NOT in PostgreSQL
+           value  reserved in none of the three (but in others, e.g. Oracle/H2)
+
+         Liquibase's default objectQuotingStrategy (LEGACY) knows each engine's reserved words and
+         quotes them automatically: "user" / `order` / [group]. Change types are therefore safe. -->
+    <changeSet id="1-create-user" author="demo">
+        <createTable tableName="user">
+            <column name="id" type="int">
+                <constraints primaryKey="true"/>
+            </column>
+            <column name="name" type="varchar(50)"/>
+            <column name="group" type="varchar(20)"/>
+        </createTable>
+    </changeSet>
+
+    <changeSet id="2-create-order" author="demo">
+        <createTable tableName="order">
+            <column name="id" type="int">
+                <constraints primaryKey="true"/>
+            </column>
+            <!-- NOT references="user(id)": that shorthand is copied into the SQL as raw text,
+                 unquoted -> "REFERENCES dbo.user(id)" fails on SQL Server. -->
+            <column name="user_id" type="int">
+                <constraints nullable="false" foreignKeyName="fk_order_user"
+                             referencedTableName="user" referencedColumnNames="id"/>
+            </column>
+            <column name="key" type="varchar(20)"/>
+            <column name="value" type="int"/>
+        </createTable>
+    </changeSet>
+
+    <changeSet id="3-insert-data" author="demo">
+        <insert tableName="user">
+            <column name="id" valueNumeric="1"/>
+            <column name="name" value="ana"/>
+            <column name="group" value="admins"/>
+        </insert>
+        <insert tableName="order">
+            <column name="id" valueNumeric="10"/>
+            <column name="user_id" valueNumeric="1"/>
+            <column name="key" value="A-10"/>
+            <column name="value" valueNumeric="99"/>
+        </insert>
+    </changeSet>
+
+    <!-- Raw SQL is NOT quoted for you. The quote characters differ:
+           PostgreSQL "x"   SQL Server [x] or "x" (QUOTED_IDENTIFIER is ON by default)   MySQL `x`
+         (MySQL accepts "x" only with sql_mode ANSI_QUOTES, which is off by default.) -->
+    <changeSet id="4-view-user-orders" author="demo" dbms="postgresql, mssql">
+        <sql>
+            CREATE VIEW user_orders AS
+            SELECT u.name, u."group", o."key", o.value
+            FROM "user" u JOIN "order" o ON o.user_id = u.id
+        </sql>
+    </changeSet>
+    <changeSet id="4-view-user-orders-mysql" author="demo" dbms="mysql">
+        <sql>
+            CREATE VIEW user_orders AS
+            SELECT u.name, u.`group`, o.`key`, o.value
+            FROM user u JOIN `order` o ON o.user_id = u.id
+        </sql>
+    </changeSet>
+</databaseChangeLog>

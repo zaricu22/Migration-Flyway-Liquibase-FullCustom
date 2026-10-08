@@ -1,0 +1,49 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<databaseChangeLog
+        xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+        xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+        xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog
+            http://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-latest.xsd">
+
+    <!-- WHAT GOES WRONG (2): two ON DELETE CASCADE paths from one table to another.
+           department -> employee -> assignment
+           department -> project  -> assignment
+         PostgreSQL and MySQL: fine. SQL Server rejects the second path:
+         "Introducing FOREIGN KEY constraint 'fk_assignment_project' on table 'assignment' may cause
+          cycles or multiple cascade paths." -->
+    <changeSet id="1-create-tables" author="demo">
+        <createTable tableName="department">
+            <column name="id" type="int"><constraints primaryKey="true"/></column>
+        </createTable>
+        <createTable tableName="employee">
+            <column name="id" type="int"><constraints primaryKey="true"/></column>
+            <column name="department_id" type="int"><constraints nullable="false"/></column>
+        </createTable>
+        <createTable tableName="project">
+            <column name="id" type="int"><constraints primaryKey="true"/></column>
+            <column name="department_id" type="int"><constraints nullable="false"/></column>
+        </createTable>
+        <createTable tableName="assignment">
+            <column name="employee_id" type="int"><constraints nullable="false"/></column>
+            <column name="project_id" type="int"><constraints nullable="false"/></column>
+        </createTable>
+    </changeSet>
+
+    <changeSet id="2-fk-employee-department" author="demo">
+        <addForeignKeyConstraint constraintName="fk_employee_department" baseTableName="employee" baseColumnNames="department_id"
+                                 referencedTableName="department" referencedColumnNames="id" onDelete="CASCADE"/>
+    </changeSet>
+    <changeSet id="3-fk-project-department" author="demo">
+        <addForeignKeyConstraint constraintName="fk_project_department" baseTableName="project" baseColumnNames="department_id"
+                                 referencedTableName="department" referencedColumnNames="id" onDelete="CASCADE"/>
+    </changeSet>
+    <changeSet id="4-fk-assignment-employee" author="demo">
+        <addForeignKeyConstraint constraintName="fk_assignment_employee" baseTableName="assignment" baseColumnNames="employee_id"
+                                 referencedTableName="employee" referencedColumnNames="id" onDelete="CASCADE"/>
+    </changeSet>
+    <!-- the second cascade path to assignment: fails on SQL Server -->
+    <changeSet id="5-fk-assignment-project" author="demo">
+        <addForeignKeyConstraint constraintName="fk_assignment_project" baseTableName="assignment" baseColumnNames="project_id"
+                                 referencedTableName="project" referencedColumnNames="id" onDelete="CASCADE"/>
+    </changeSet>
+</databaseChangeLog>

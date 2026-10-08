@@ -1,0 +1,80 @@
+databaseChangeLog:
+  # ROLLBACK: some change types know their inverse (createTable -> dropTable, addColumn -> dropColumn).
+  # Everything else (sql, insert, dropColumn, ...) needs an explicit rollback block.
+  # CONTEXTS / LABELS: decide at runtime which changesets run (--context-filter, --label-filter).
+
+  # Release v1 -------------------------------------------------------------------------------
+  - changeSet:
+      id: 1-create-product
+      author: demo
+      labels: v1
+      changes:                                   # automatic rollback: DROP TABLE
+        - createTable:
+            tableName: product
+            columns:
+              - column: { name: id, type: int, constraints: { primaryKey: true } }
+              - column: { name: name, type: varchar(100), constraints: { nullable: false } }
+              - column: { name: legacy_code, type: varchar(20) }
+
+  - changeSet:
+      id: 2-seed-product
+      author: demo
+      labels: v1
+      changes:
+        - insert: { tableName: product, columns: [ { column: { name: id, valueNumeric: 1 } }, { column: { name: name, value: Laptop } }, { column: { name: legacy_code, value: LP-01 } } ] }
+        - insert: { tableName: product, columns: [ { column: { name: id, valueNumeric: 2 } }, { column: { name: name, value: Phone } }, { column: { name: legacy_code, value: PH-07 } } ] }
+      rollback:                                  # insert has no automatic inverse
+        - delete: { tableName: product, where: "id IN (1, 2)" }
+
+  # A named point to roll back to: rollback --tag=v1 undoes everything recorded AFTER this changeset.
+  - changeSet:
+      id: 3-tag-v1
+      author: demo
+      changes:
+        - tagDatabase: { tag: v1 }
+
+  # Release v2 -------------------------------------------------------------------------------
+  - changeSet:
+      id: 4-add-price
+      author: demo
+      labels: v2
+      changes:                                   # automatic rollback: DROP COLUMN
+        - addColumn:
+            tableName: product
+            columns:
+              - column: { name: price, type: "decimal(10,2)" }
+
+  - changeSet:
+      id: 5-create-view-product-price
+      author: demo
+      labels: v2
+      changes:
+        - sql:
+            sql: CREATE VIEW product_price AS SELECT id, name, price FROM product
+      rollback:                                  # raw SQL: Liquibase can't know the inverse
+        - sql:
+            sql: DROP VIEW product_price
+
+  - changeSet:
+      id: 6-drop-legacy-code
+      author: demo
+      labels: v2
+      changes:
+        - dropColumn: { tableName: product, columnName: legacy_code }
+      rollback:                                  # brings the COLUMN back, not its DATA (all NULL)
+        - addColumn:
+            tableName: product
+            columns:
+              - column: { name: legacy_code, type: varchar(20) }
+
+  # Test data: only where the context filter includes "dev".
+  # Careful: WITHOUT any --context-filter, Liquibase runs ALL changesets, this one included.
+  - changeSet:
+      id: 7-test-products
+      author: demo
+      context: dev
+      changes:
+        - insert: { tableName: product, columns: [ { column: { name: id, valueNumeric: 900 } }, { column: { name: name, value: TEST product A } } ] }
+        - insert: { tableName: product, columns: [ { column: { name: id, valueNumeric: 901 } }, { column: { name: name, value: TEST product B } } ] }
+      rollback:
+        - delete: { tableName: product, where: "id >= 900" }

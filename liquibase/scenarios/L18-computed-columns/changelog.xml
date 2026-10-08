@@ -1,0 +1,56 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<databaseChangeLog
+        xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+        xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+        xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog
+            http://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-latest.xsd">
+
+    <changeSet id="1-create-order-line" author="demo">
+        <createTable tableName="order_line">
+            <column name="id" type="int"><constraints primaryKey="true"/></column>
+            <column name="sku" type="varchar(20)"><constraints nullable="false"/></column>
+            <column name="qty" type="int"><constraints nullable="false"/></column>
+            <column name="unit_price" type="decimal(10,2)"><constraints nullable="false"/></column>
+        </createTable>
+    </changeSet>
+
+    <!-- Liquibase has no change type for generated/computed columns -> raw SQL per engine.
+           PostgreSQL + MySQL share the standard syntax:  <type> GENERATED ALWAYS AS (expr) STORED
+           SQL Server:                                    AS (expr) PERSISTED   (no type: it's inferred) -->
+    <changeSet id="2-line-total" author="demo" dbms="postgresql, mysql">
+        <sql>ALTER TABLE order_line ADD line_total decimal(12,2) GENERATED ALWAYS AS (qty * unit_price) STORED</sql>
+    </changeSet>
+    <changeSet id="2-line-total-mssql" author="demo" dbms="mssql">
+        <sql>ALTER TABLE order_line ADD line_total AS CAST(qty * unit_price AS decimal(12,2)) PERSISTED</sql>
+    </changeSet>
+
+    <!-- A text expression: here the dialects split again.
+           PostgreSQL: the expression must be IMMUTABLE. concat() is only STABLE -> rejected;
+                       the || operator (with an explicit cast) is immutable -> accepted.
+           MySQL / SQL Server: CONCAT() is fine. -->
+    <changeSet id="3-line-label-postgresql" author="demo" dbms="postgresql">
+        <sql>ALTER TABLE order_line ADD line_label varchar(40) GENERATED ALWAYS AS (sku || ' x ' || qty::text) STORED</sql>
+    </changeSet>
+    <changeSet id="3-line-label-mysql" author="demo" dbms="mysql">
+        <sql>ALTER TABLE order_line ADD line_label varchar(40) GENERATED ALWAYS AS (CONCAT(sku, ' x ', qty)) VIRTUAL</sql>
+    </changeSet>
+    <changeSet id="3-line-label-mssql" author="demo" dbms="mssql">
+        <sql>ALTER TABLE order_line ADD line_label AS CONCAT(sku, ' x ', qty)</sql>
+    </changeSet>
+
+    <!-- Inserts must NOT mention computed columns. -->
+    <changeSet id="4-insert-lines" author="demo">
+        <insert tableName="order_line">
+            <column name="id" valueNumeric="1"/>
+            <column name="sku" value="BOOK-1"/>
+            <column name="qty" valueNumeric="3"/>
+            <column name="unit_price" valueNumeric="12.50"/>
+        </insert>
+        <insert tableName="order_line">
+            <column name="id" valueNumeric="2"/>
+            <column name="sku" value="PEN-7"/>
+            <column name="qty" valueNumeric="10"/>
+            <column name="unit_price" valueNumeric="1.99"/>
+        </insert>
+    </changeSet>
+</databaseChangeLog>

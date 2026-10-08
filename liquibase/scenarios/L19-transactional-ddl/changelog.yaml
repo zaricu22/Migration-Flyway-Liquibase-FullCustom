@@ -1,0 +1,50 @@
+databaseChangeLog:
+  # THE PORTABLE PATTERN (see failure-demo.yaml for what goes wrong without it):
+  #   1. ONE DDL statement per changeset. If it fails, nothing of THIS changeset exists on any
+  #      engine, and everything before it is recorded as executed.
+  #   2. A precondition makes each changeset safe to re-run after a partial manual fix
+  #      (MARK_RAN = "already there, record it and move on").
+  - changeSet:
+      id: 1-create-ledger
+      author: demo
+      preConditions:
+        - onFail: MARK_RAN
+        - not:
+            - tableExists:
+                tableName: ledger
+      changes:
+        - createTable:
+            tableName: ledger
+            columns:
+              - column: { name: id, type: int, constraints: { primaryKey: true } }
+              - column: { name: name, type: varchar(50) }
+
+  - changeSet:
+      id: 2-create-ledger-entry
+      author: demo
+      preConditions:
+        - onFail: MARK_RAN
+        - not:
+            - tableExists:
+                tableName: ledger_entry
+      changes:
+        - createTable:
+            tableName: ledger_entry
+            columns:
+              - column: { name: id, type: int, constraints: { primaryKey: true } }
+              - column:
+                  name: ledger_id
+                  type: int
+                  constraints:
+                    nullable: false
+                    foreignKeyName: fk_entry_ledger
+                    referencedTableName: ledger
+                    referencedColumnNames: id
+
+  # DML may be grouped: INSERT/UPDATE are transactional on all three engines.
+  - changeSet:
+      id: 3-seed-ledger
+      author: demo
+      changes:
+        - insert: { tableName: ledger, columns: [ { column: { name: id, valueNumeric: 1 } }, { column: { name: name, value: main } } ] }
+        - insert: { tableName: ledger_entry, columns: [ { column: { name: id, valueNumeric: 1 } }, { column: { name: ledger_id, valueNumeric: 1 } } ] }

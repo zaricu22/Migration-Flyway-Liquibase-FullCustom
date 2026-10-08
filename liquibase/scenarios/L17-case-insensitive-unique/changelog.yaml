@@ -1,0 +1,49 @@
+databaseChangeLog:
+  # Requirement: 'Ana@Example.com' and 'ana@example.com' are the SAME subscriber.
+  #   MySQL / SQL Server: the default collation is already case-INsensitive -> a plain unique index
+  #   PostgreSQL: comparisons are case-sensitive -> unique index on lower(email)
+  - changeSet:
+      id: 1-create-subscriber
+      author: demo
+      changes:
+        - createTable:
+            tableName: subscriber
+            columns:
+              - column:
+                  name: id
+                  type: int
+                  constraints:
+                    primaryKey: true
+              - column:
+                  name: email
+                  type: varchar(100)
+                  constraints:
+                    nullable: false
+
+  # Expression (functional) index: Liquibase supports it with computed: true.
+  - changeSet:
+      id: 2-unique-email-postgresql
+      author: demo
+      dbms: postgresql
+      changes:
+        - createIndex:
+            tableName: subscriber
+            indexName: ux_subscriber_email
+            unique: true
+            columns:
+              - column:
+                  name: lower(email)
+                  computed: true
+
+  - changeSet:
+      id: 2-unique-email-mysql-mssql
+      author: demo
+      dbms: mysql, mssql
+      changes:
+        - createIndex:
+            tableName: subscriber
+            indexName: ux_subscriber_email
+            unique: true
+            columns:
+              - column:
+                  name: email

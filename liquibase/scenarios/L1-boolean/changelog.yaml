@@ -1,0 +1,64 @@
+databaseChangeLog:
+  # Portable: the abstract type "boolean" + valueBoolean/defaultValueBoolean.
+  # Liquibase picks the engine's type AND the engine's literal (true / 1 / b'1').
+  - changeSet:
+      id: 1-create-feature-flag
+      author: demo
+      changes:
+        - createTable:
+            tableName: feature_flag
+            columns:
+              - column:
+                  name: id
+                  type: int
+                  constraints:
+                    primaryKey: true
+              - column:
+                  name: name
+                  type: varchar(100)
+                  constraints:
+                    nullable: false
+              - column:
+                  name: enabled
+                  type: boolean
+                  defaultValueBoolean: false
+                  constraints:
+                    nullable: false
+
+  - changeSet:
+      id: 2-insert-flags
+      author: demo
+      changes:
+        - insert:
+            tableName: feature_flag
+            columns:
+              - column: { name: id, valueNumeric: 1 }
+              - column: { name: name, value: dark_mode }
+              - column: { name: enabled, valueBoolean: true }
+        - insert:
+            tableName: feature_flag
+            columns:
+              - column: { name: id, valueNumeric: 2 }
+              - column: { name: name, value: beta_checkout }
+        - insert:
+            tableName: feature_flag
+            columns:
+              - column: { name: id, valueNumeric: 3 }
+              - column: { name: name, value: new_search }
+
+  # Raw SQL is NOT translated: the boolean literal must match the engine.
+  # TRUE works on PostgreSQL and MySQL (where TRUE is just 1), SQL Server has no TRUE -> 1.
+  - changeSet:
+      id: 3-enable-beta-raw-sql
+      author: demo
+      dbms: postgresql, mysql
+      changes:
+        - sql:
+            sql: UPDATE feature_flag SET enabled = TRUE WHERE name = 'beta_checkout'
+  - changeSet:
+      id: 3-enable-beta-raw-sql-mssql
+      author: demo
+      dbms: mssql
+      changes:
+        - sql:
+            sql: UPDATE feature_flag SET enabled = 1 WHERE name = 'beta_checkout'

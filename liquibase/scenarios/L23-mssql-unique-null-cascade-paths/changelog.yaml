@@ -1,0 +1,105 @@
+databaseChangeLog:
+  # THE PORTABLE PATTERN (see failure-unique-null.yaml and failure-cascade.yaml):
+  #   1. "Unique, but NULL allowed many times": a unique constraint on PostgreSQL / MySQL,
+  #      a FILTERED unique index (WHERE ... IS NOT NULL) on SQL Server.
+  #   2. Multiple cascade paths: keep ONE cascade path, make the other NO ACTION, on ALL engines,
+  #      so the delete behavior is the same everywhere.
+
+  # 1. Unique tax number, optional -----------------------------------------------------------
+  - changeSet:
+      id: 1-create-customer
+      author: demo
+      changes:
+        - createTable:
+            tableName: customer
+            columns:
+              - column: { name: id, type: int, constraints: { primaryKey: true } }
+              - column: { name: tax_number, type: varchar(20) }
+
+  - changeSet:
+      id: 2-unique-tax-number
+      author: demo
+      dbms: postgresql, mysql
+      changes:
+        - addUniqueConstraint: { tableName: customer, columnNames: tax_number, constraintName: uq_customer_tax_number }
+
+  # createIndex has no WHERE clause, so the filtered index is raw SQL.
+  - changeSet:
+      id: 2-unique-tax-number-mssql
+      author: demo
+      dbms: mssql
+      changes:
+        - sql:
+            sql: CREATE UNIQUE INDEX uq_customer_tax_number ON customer (tax_number) WHERE tax_number IS NOT NULL
+      rollback:
+        - sql:
+            sql: DROP INDEX uq_customer_tax_number ON customer
+
+  - changeSet:
+      id: 3-seed-customers
+      author: demo
+      changes:
+        - insert: { tableName: customer, columns: [ { column: { name: id, valueNumeric: 1 } } ] }
+        - insert: { tableName: customer, columns: [ { column: { name: id, valueNumeric: 2 } } ] }
+        - insert: { tableName: customer, columns: [ { column: { name: id, valueNumeric: 3 } }, { column: { name: tax_number, value: RS100 } } ] }
+
+  # 2. One cascade path per table pair -------------------------------------------------------
+  - changeSet:
+      id: 4-create-tables
+      author: demo
+      changes:
+        - createTable:
+            tableName: department
+            columns:
+              - column: { name: id, type: int, constraints: { primaryKey: true } }
+        - createTable:
+            tableName: employee
+            columns:
+              - column: { name: id, type: int, constraints: { primaryKey: true } }
+              - column: { name: department_id, type: int, constraints: { nullable: false } }
+        - createTable:
+            tableName: project
+            columns:
+              - column: { name: id, type: int, constraints: { primaryKey: true } }
+              - column: { name: department_id, type: int, constraints: { nullable: false } }
+        - createTable:
+            tableName: assignment
+            columns:
+              - column: { name: employee_id, type: int, constraints: { nullable: false } }
+              - column: { name: project_id, type: int, constraints: { nullable: false } }
+
+  - changeSet:
+      id: 5-fk-employee-department
+      author: demo
+      changes:
+        - addForeignKeyConstraint: { constraintName: fk_employee_department, baseTableName: employee, baseColumnNames: department_id, referencedTableName: department, referencedColumnNames: id, onDelete: CASCADE }
+  - changeSet:
+      id: 6-fk-project-department
+      author: demo
+      changes:
+        - addForeignKeyConstraint: { constraintName: fk_project_department, baseTableName: project, baseColumnNames: department_id, referencedTableName: department, referencedColumnNames: id, onDelete: CASCADE }
+  # the ONE cascade path to assignment: via employee
+  - changeSet:
+      id: 7-fk-assignment-employee
+      author: demo
+      changes:
+        - addForeignKeyConstraint: { constraintName: fk_assignment_employee, baseTableName: assignment, baseColumnNames: employee_id, referencedTableName: employee, referencedColumnNames: id, onDelete: CASCADE }
+  # the other path: NO ACTION -> a project's assignments are deleted explicitly before the project
+  - changeSet:
+      id: 8-fk-assignment-project
+      author: demo
+      changes:
+        - addForeignKeyConstraint: { constraintName: fk_assignment_project, baseTableName: assignment, baseColumnNames: project_id, referencedTableName: project, referencedColumnNames: id, onDelete: NO ACTION }
+
+  - changeSet:
+      id: 9-seed-departments
+      author: demo
+      changes:
+        - insert: { tableName: department, columns: [ { column: { name: id, valueNumeric: 1 } } ] }
+        - insert: { tableName: employee, columns: [ { column: { name: id, valueNumeric: 1 } }, { column: { name: department_id, valueNumeric: 1 } } ] }
+        - insert: { tableName: employee, columns: [ { column: { name: id, valueNumeric: 2 } }, { column: { name: department_id, valueNumeric: 1 } } ] }
+        - insert: { tableName: project, columns: [ { column: { name: id, valueNumeric: 1 } }, { column: { name: department_id, valueNumeric: 1 } } ] }
+        - insert: { tableName: project, columns: [ { column: { name: id, valueNumeric: 2 } }, { column: { name: department_id, valueNumeric: 1 } } ] }
+        - insert: { tableName: assignment, columns: [ { column: { name: employee_id, valueNumeric: 1 } }, { column: { name: project_id, valueNumeric: 1 } } ] }
+        - insert: { tableName: assignment, columns: [ { column: { name: employee_id, valueNumeric: 1 } }, { column: { name: project_id, valueNumeric: 2 } } ] }
+        - insert: { tableName: assignment, columns: [ { column: { name: employee_id, valueNumeric: 2 } }, { column: { name: project_id, valueNumeric: 2 } } ] }

@@ -1,0 +1,54 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<databaseChangeLog
+        xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+        xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+        xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog
+            http://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-latest.xsd">
+
+    <!-- THE PORTABLE PATTERN (see failure-demo.xml for what goes wrong without it):
+           1. Drop the default with dropDefaultValue BEFORE dropping the column. On SQL Server Liquibase
+              looks up the constraint's generated name itself; elsewhere it's a plain DROP DEFAULT.
+           2. Prevention: give new defaults a NAME (defaultValueConstraintName), so later scripts know it. -->
+    <changeSet id="1-create-customer" author="demo">
+        <createTable tableName="customer">
+            <column name="id" type="int"><constraints primaryKey="true"/></column>
+            <column name="name" type="varchar(100)"><constraints nullable="false"/></column>
+        </createTable>
+    </changeSet>
+
+    <!-- The legacy column, as it exists in many databases: unnamed default. -->
+    <changeSet id="2-add-is-vip-unnamed-default" author="demo">
+        <sql>ALTER TABLE customer ADD is_vip smallint NOT NULL DEFAULT 0</sql>
+    </changeSet>
+
+    <!-- Prevention for new columns: a named default (only SQL Server uses the name). -->
+    <changeSet id="3-add-status-named-default" author="demo">
+        <addColumn tableName="customer">
+            <column name="status" type="varchar(20)" defaultValue="active"
+                    defaultValueConstraintName="df_customer_status">
+                <constraints nullable="false"/>
+            </column>
+        </addColumn>
+    </changeSet>
+
+    <changeSet id="4-seed-customer" author="demo">
+        <insert tableName="customer">
+            <column name="id" valueNumeric="1"/>
+            <column name="name" value="Ana"/>
+        </insert>
+        <insert tableName="customer">
+            <column name="id" valueNumeric="2"/>
+            <column name="name" value="Marko"/>
+        </insert>
+    </changeSet>
+
+    <!-- 1st: the default (columnDataType is required on some engines, e.g. MySQL and SQL Server) -->
+    <changeSet id="5-drop-is-vip-default" author="demo">
+        <dropDefaultValue tableName="customer" columnName="is_vip" columnDataType="smallint"/>
+    </changeSet>
+
+    <!-- 2nd: the column, now without dependent objects on every engine -->
+    <changeSet id="6-drop-is-vip" author="demo">
+        <dropColumn tableName="customer" columnName="is_vip"/>
+    </changeSet>
+</databaseChangeLog>

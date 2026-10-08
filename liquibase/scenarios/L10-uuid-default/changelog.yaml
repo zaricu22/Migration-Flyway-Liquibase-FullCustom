@@ -1,0 +1,51 @@
+databaseChangeLog:
+  # A database-generated UUID default: three different functions, and MySQL requires the
+  # parentheses of an "expression default" (8.0.13+).
+  - property: { name: uuid_default, value: gen_random_uuid(), dbms: postgresql }
+  - property: { name: uuid_default, value: (UUID()),          dbms: mysql }
+  - property: { name: uuid_default, value: NEWID(),           dbms: mssql }
+
+  - changeSet:
+      id: 1-create-session-token
+      author: demo
+      changes:
+        - createTable:
+            tableName: session_token
+            columns:
+              - column:
+                  name: id
+                  type: uuid
+                  defaultValueComputed: ${uuid_default}
+                  constraints:
+                    primaryKey: true
+              - column:
+                  name: user_name
+                  type: varchar(50)
+
+  # SQL Server extra: NEWSEQUENTIALID() gives index-friendly, ever-increasing values,
+  # but it is ONLY allowed as a column default (not in SELECT or INSERT).
+  - changeSet:
+      id: 2-sequential-uuid-mssql
+      author: demo
+      dbms: mssql
+      changes:
+        - createTable:
+            tableName: session_token_sequential
+            columns:
+              - column:
+                  name: id
+                  type: uuid
+                  defaultValueComputed: NEWSEQUENTIALID()
+                  constraints:
+                    primaryKey: true
+              - column:
+                  name: user_name
+                  type: varchar(50)
+
+  - changeSet:
+      id: 3-insert-without-id
+      author: demo
+      changes:
+        - insert: { tableName: session_token, columns: [ { column: { name: user_name, value: ana } } ] }
+        - insert: { tableName: session_token, columns: [ { column: { name: user_name, value: marko } } ] }
+        - insert: { tableName: session_token, columns: [ { column: { name: user_name, value: ivan } } ] }

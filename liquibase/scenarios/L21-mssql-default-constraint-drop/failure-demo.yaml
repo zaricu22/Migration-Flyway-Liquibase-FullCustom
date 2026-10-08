@@ -1,0 +1,30 @@
+databaseChangeLog:
+  # WHAT GOES WRONG: a column added with an UNNAMED default (the usual hand-written SQL, or a
+  # legacy database created with SSMS) can't simply be dropped on SQL Server.
+  - changeSet:
+      id: 1-create-customer
+      author: demo
+      changes:
+        - createTable:
+            tableName: customer
+            columns:
+              - column: { name: id, type: int, constraints: { primaryKey: true } }
+              - column: { name: name, type: varchar(100), constraints: { nullable: false } }
+
+  # The same raw SQL works on all three engines. On SQL Server the default becomes a separate
+  # CONSTRAINT object with a generated name like DF__customer__is_vip__3B75D760.
+  - changeSet:
+      id: 2-add-is-vip-unnamed-default
+      author: demo
+      changes:
+        - sql:
+            sql: ALTER TABLE customer ADD is_vip smallint NOT NULL DEFAULT 0
+
+  # PostgreSQL and MySQL: the default goes away with the column.
+  # SQL Server: "The object 'DF__customer__is_vip__...' is dependent on column 'is_vip'."
+  - changeSet:
+      id: 3-drop-is-vip
+      author: demo
+      changes:
+        - sql:
+            sql: ALTER TABLE customer DROP COLUMN is_vip

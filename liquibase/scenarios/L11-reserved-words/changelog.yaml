@@ -1,0 +1,88 @@
+databaseChangeLog:
+  # Table and column names that are reserved words somewhere:
+  #   user   reserved in PostgreSQL and SQL Server, NOT in MySQL
+  #   order  reserved everywhere
+  #   group  reserved everywhere
+  #   key    reserved in MySQL and SQL Server, NOT in PostgreSQL
+  #   value  reserved in none of the three (but in others, e.g. Oracle/H2)
+  #
+  # Liquibase's default objectQuotingStrategy (LEGACY) knows each engine's reserved words and
+  # quotes them automatically: "user" / `order` / [group]. Change types are therefore safe.
+  - changeSet:
+      id: 1-create-user
+      author: demo
+      changes:
+        - createTable:
+            tableName: user
+            columns:
+              - column:
+                  name: id
+                  type: int
+                  constraints:
+                    primaryKey: true
+              - column:
+                  name: name
+                  type: varchar(50)
+              - column:
+                  name: group
+                  type: varchar(20)
+
+  - changeSet:
+      id: 2-create-order
+      author: demo
+      changes:
+        - createTable:
+            tableName: order
+            columns:
+              - column:
+                  name: id
+                  type: int
+                  constraints:
+                    primaryKey: true
+              - column:
+                  name: user_id
+                  type: int
+                  constraints:
+                    nullable: false
+                    foreignKeyName: fk_order_user
+                    # NOT "references: user(id)": that shorthand is copied into the SQL as raw
+                    # text, unquoted -> "REFERENCES dbo.user(id)" fails on SQL Server.
+                    referencedTableName: user
+                    referencedColumnNames: id
+              - column:
+                  name: key
+                  type: varchar(20)
+              - column:
+                  name: value
+                  type: int
+
+  - changeSet:
+      id: 3-insert-data
+      author: demo
+      changes:
+        - insert: { tableName: user, columns: [ { column: { name: id, valueNumeric: 1 } }, { column: { name: name, value: ana } }, { column: { name: group, value: admins } } ] }
+        - insert: { tableName: order, columns: [ { column: { name: id, valueNumeric: 10 } }, { column: { name: user_id, valueNumeric: 1 } }, { column: { name: key, value: A-10 } }, { column: { name: value, valueNumeric: 99 } } ] }
+
+  # Raw SQL is NOT quoted for you. The quote characters differ:
+  #   PostgreSQL "x"   SQL Server [x] or "x" (QUOTED_IDENTIFIER is ON by default)   MySQL `x`
+  # (MySQL accepts "x" only with sql_mode ANSI_QUOTES, which is off by default.)
+  - changeSet:
+      id: 4-view-user-orders
+      author: demo
+      dbms: postgresql, mssql
+      changes:
+        - sql:
+            sql: >
+              CREATE VIEW user_orders AS
+              SELECT u.name, u."group", o."key", o.value
+              FROM "user" u JOIN "order" o ON o.user_id = u.id
+  - changeSet:
+      id: 4-view-user-orders-mysql
+      author: demo
+      dbms: mysql
+      changes:
+        - sql:
+            sql: >
+              CREATE VIEW user_orders AS
+              SELECT u.name, u.`group`, o.`key`, o.value
+              FROM user u JOIN `order` o ON o.user_id = u.id

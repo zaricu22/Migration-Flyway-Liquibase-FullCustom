@@ -1,0 +1,28 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<databaseChangeLog
+        xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+        xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+        xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog
+            http://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-latest.xsd">
+
+    <!-- WHAT GOES WRONG: a column added with an UNNAMED default (the usual hand-written SQL, or a
+         legacy database created with SSMS) can't simply be dropped on SQL Server. -->
+    <changeSet id="1-create-customer" author="demo">
+        <createTable tableName="customer">
+            <column name="id" type="int"><constraints primaryKey="true"/></column>
+            <column name="name" type="varchar(100)"><constraints nullable="false"/></column>
+        </createTable>
+    </changeSet>
+
+    <!-- The same raw SQL works on all three engines. On SQL Server the default becomes a separate
+         CONSTRAINT object with a generated name like DF__customer__is_vip__3B75D760. -->
+    <changeSet id="2-add-is-vip-unnamed-default" author="demo">
+        <sql>ALTER TABLE customer ADD is_vip smallint NOT NULL DEFAULT 0</sql>
+    </changeSet>
+
+    <!-- PostgreSQL and MySQL: the default goes away with the column.
+         SQL Server: "The object 'DF__customer__is_vip__...' is dependent on column 'is_vip'." -->
+    <changeSet id="3-drop-is-vip" author="demo">
+        <sql>ALTER TABLE customer DROP COLUMN is_vip</sql>
+    </changeSet>
+</databaseChangeLog>

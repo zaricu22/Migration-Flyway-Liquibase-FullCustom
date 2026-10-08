@@ -1,0 +1,85 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<databaseChangeLog
+        xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+        xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+        xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog
+            http://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-latest.xsd">
+
+    <!-- ROLLBACK: some change types know their inverse (createTable -> dropTable, addColumn -> dropColumn).
+         Everything else (sql, insert, dropColumn, ...) needs an explicit rollback block.
+         CONTEXTS / LABELS: decide at runtime which changesets run (options context-filter, label-filter). -->
+
+    <!-- Release v1 ............................................................................. -->
+    <changeSet id="1-create-product" author="demo" labels="v1">
+        <!-- automatic rollback: DROP TABLE -->
+        <createTable tableName="product">
+            <column name="id" type="int"><constraints primaryKey="true"/></column>
+            <column name="name" type="varchar(100)"><constraints nullable="false"/></column>
+            <column name="legacy_code" type="varchar(20)"/>
+        </createTable>
+    </changeSet>
+
+    <changeSet id="2-seed-product" author="demo" labels="v1">
+        <insert tableName="product">
+            <column name="id" valueNumeric="1"/>
+            <column name="name" value="Laptop"/>
+            <column name="legacy_code" value="LP-01"/>
+        </insert>
+        <insert tableName="product">
+            <column name="id" valueNumeric="2"/>
+            <column name="name" value="Phone"/>
+            <column name="legacy_code" value="PH-07"/>
+        </insert>
+        <!-- insert has no automatic inverse -->
+        <rollback>
+            <delete tableName="product"><where>id IN (1, 2)</where></delete>
+        </rollback>
+    </changeSet>
+
+    <!-- A named point to roll back to: rollback with tag v1 undoes everything recorded AFTER this changeset. -->
+    <changeSet id="3-tag-v1" author="demo">
+        <tagDatabase tag="v1"/>
+    </changeSet>
+
+    <!-- Release v2 ............................................................................. -->
+    <changeSet id="4-add-price" author="demo" labels="v2">
+        <!-- automatic rollback: DROP COLUMN -->
+        <addColumn tableName="product">
+            <column name="price" type="decimal(10,2)"/>
+        </addColumn>
+    </changeSet>
+
+    <changeSet id="5-create-view-product-price" author="demo" labels="v2">
+        <sql>CREATE VIEW product_price AS SELECT id, name, price FROM product</sql>
+        <!-- raw SQL: Liquibase can't know the inverse -->
+        <rollback>
+            <sql>DROP VIEW product_price</sql>
+        </rollback>
+    </changeSet>
+
+    <changeSet id="6-drop-legacy-code" author="demo" labels="v2">
+        <dropColumn tableName="product" columnName="legacy_code"/>
+        <!-- brings the COLUMN back, not its DATA (all NULL) -->
+        <rollback>
+            <addColumn tableName="product">
+                <column name="legacy_code" type="varchar(20)"/>
+            </addColumn>
+        </rollback>
+    </changeSet>
+
+    <!-- Test data: only where the context filter includes "dev".
+         Careful: WITHOUT any context filter, Liquibase runs ALL changesets, this one included. -->
+    <changeSet id="7-test-products" author="demo" context="dev">
+        <insert tableName="product">
+            <column name="id" valueNumeric="900"/>
+            <column name="name" value="TEST product A"/>
+        </insert>
+        <insert tableName="product">
+            <column name="id" valueNumeric="901"/>
+            <column name="name" value="TEST product B"/>
+        </insert>
+        <rollback>
+            <delete tableName="product"><where>id &gt;= 900</where></delete>
+        </rollback>
+    </changeSet>
+</databaseChangeLog>

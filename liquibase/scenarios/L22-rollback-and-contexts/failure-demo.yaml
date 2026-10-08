@@ -1,0 +1,25 @@
+databaseChangeLog:
+  # WHAT GOES WRONG: a raw SQL changeset without a rollback block can't be rolled back.
+  - changeSet:
+      id: 1-create-audit-note
+      author: demo
+      changes:
+        - createTable:
+            tableName: audit_note
+            columns:
+              - column: { name: id, type: int, constraints: { primaryKey: true } }
+              - column: { name: note, type: varchar(100) }
+
+  - changeSet:
+      id: 2-tag-v1
+      author: demo
+      changes:
+        - tagDatabase: { tag: v1 }
+
+  # No rollback block: "rollback --tag=v1" fails, nothing after the tag can be undone automatically.
+  - changeSet:
+      id: 3-raw-sql-without-rollback
+      author: demo
+      changes:
+        - sql:
+            sql: INSERT INTO audit_note (id, note) VALUES (1, 'written by raw SQL')

@@ -1,0 +1,46 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<databaseChangeLog
+        xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+        xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+        xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog
+            http://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-latest.xsd">
+
+    <!-- Mixed-case names with Liquibase's DEFAULT quoting strategy (LEGACY):
+           PostgreSQL: Liquibase QUOTES mixed-case names to preserve them -> "CustomerOrder"
+                       -> every query must now write "CustomerOrder" with quotes, exactly like that
+           MySQL:      name kept; TABLE names are case-sensitive on Linux (lower_case_table_names=0)
+           SQL Server: name kept; lookups are case-insensitive (default collation *_CI_*) -->
+    <changeSet id="1-create-customer-order-legacy" author="demo">
+        <createTable tableName="CustomerOrder">
+            <column name="Id" type="int">
+                <constraints primaryKey="true"/>
+            </column>
+            <column name="OrderDate" type="date"/>
+        </createTable>
+    </changeSet>
+
+    <!-- QUOTE_ONLY_RESERVED_WORDS: mixed-case names are NOT quoted -> PostgreSQL folds them to
+         lower case (customerinvoice / invoicedate), and unquoted queries in any spelling work. -->
+    <changeSet id="2-create-customer-invoice-folded" author="demo" objectQuotingStrategy="QUOTE_ONLY_RESERVED_WORDS">
+        <createTable tableName="CustomerInvoice">
+            <column name="Id" type="int">
+                <constraints primaryKey="true"/>
+            </column>
+            <column name="InvoiceDate" type="date"/>
+        </createTable>
+    </changeSet>
+
+    <changeSet id="3-insert" author="demo">
+        <insert tableName="CustomerOrder">
+            <column name="Id" valueNumeric="1"/>
+            <column name="OrderDate" valueDate="2025-01-15"/>
+        </insert>
+    </changeSet>
+
+    <changeSet id="4-insert-folded" author="demo" objectQuotingStrategy="QUOTE_ONLY_RESERVED_WORDS">
+        <insert tableName="CustomerInvoice">
+            <column name="Id" valueNumeric="1"/>
+            <column name="InvoiceDate" valueDate="2025-01-20"/>
+        </insert>
+    </changeSet>
+</databaseChangeLog>

@@ -1,0 +1,64 @@
+databaseChangeLog:
+  - changeSet:
+      id: 1-create-order-line
+      author: demo
+      changes:
+        - createTable:
+            tableName: order_line
+            columns:
+              - column: { name: id, type: int, constraints: { primaryKey: true } }
+              - column: { name: sku, type: varchar(20), constraints: { nullable: false } }
+              - column: { name: qty, type: int, constraints: { nullable: false } }
+              - column: { name: unit_price, type: "decimal(10,2)", constraints: { nullable: false } }
+
+  # Liquibase has no change type for generated/computed columns -> raw SQL per engine.
+  #   PostgreSQL + MySQL share the standard syntax:  <type> GENERATED ALWAYS AS (expr) STORED
+  #   SQL Server:                                    AS (expr) PERSISTED   (no type: it's inferred)
+  - changeSet:
+      id: 2-line-total
+      author: demo
+      dbms: postgresql, mysql
+      changes:
+        - sql:
+            sql: ALTER TABLE order_line ADD line_total decimal(12,2) GENERATED ALWAYS AS (qty * unit_price) STORED
+  - changeSet:
+      id: 2-line-total-mssql
+      author: demo
+      dbms: mssql
+      changes:
+        - sql:
+            sql: ALTER TABLE order_line ADD line_total AS CAST(qty * unit_price AS decimal(12,2)) PERSISTED
+
+  # A text expression: here the dialects split again.
+  #   PostgreSQL: the expression must be IMMUTABLE. concat() is only STABLE -> rejected;
+  #               the || operator (with an explicit cast) is immutable -> accepted.
+  #   MySQL / SQL Server: CONCAT() is fine.
+  - changeSet:
+      id: 3-line-label-postgresql
+      author: demo
+      dbms: postgresql
+      changes:
+        - sql:
+            sql: ALTER TABLE order_line ADD line_label varchar(40) GENERATED ALWAYS AS (sku || ' x ' || qty::text) STORED
+  - changeSet:
+      id: 3-line-label-mysql
+      author: demo
+      dbms: mysql
+      changes:
+        - sql:
+            sql: ALTER TABLE order_line ADD line_label varchar(40) GENERATED ALWAYS AS (CONCAT(sku, ' x ', qty)) VIRTUAL
+  - changeSet:
+      id: 3-line-label-mssql
+      author: demo
+      dbms: mssql
+      changes:
+        - sql:
+            sql: ALTER TABLE order_line ADD line_label AS CONCAT(sku, ' x ', qty)
+
+  # Inserts must NOT mention computed columns.
+  - changeSet:
+      id: 4-insert-lines
+      author: demo
+      changes:
+        - insert: { tableName: order_line, columns: [ { column: { name: id, valueNumeric: 1 } }, { column: { name: sku, value: BOOK-1 } }, { column: { name: qty, valueNumeric: 3 } }, { column: { name: unit_price, valueNumeric: 12.50 } } ] }
+        - insert: { tableName: order_line, columns: [ { column: { name: id, valueNumeric: 2 } }, { column: { name: sku, value: PEN-7 } },  { column: { name: qty, valueNumeric: 10 } }, { column: { name: unit_price, valueNumeric: 1.99 } } ] }

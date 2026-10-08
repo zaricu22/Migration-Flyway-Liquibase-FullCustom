@@ -1,0 +1,64 @@
+name: liquibase-demo
+
+x-scripts: &scripts
+  # inspect scripts are executed by each engine's own client inside its container
+  - ./scenarios:/scenarios:ro
+  - ./common:/common:ro
+
+services:
+  postgres:
+    image: postgres:17
+    environment:
+      POSTGRES_USER: demo
+      POSTGRES_PASSWORD: Demo_Pass123
+    ports:
+      - "5434:5432"
+    volumes: *scripts
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U demo"]
+      interval: 2s
+      timeout: 3s
+      retries: 30
+
+  mysql:
+    image: mysql:8.4
+    environment:
+      MYSQL_ROOT_PASSWORD: Demo_Pass123
+    ports:
+      - "3307:3306"
+    volumes: *scripts
+    healthcheck:
+      test: ["CMD-SHELL", "mysqladmin ping -uroot -pDemo_Pass123 --silent"]
+      interval: 3s
+      timeout: 3s
+      retries: 40
+
+  mssql:
+    image: mcr.microsoft.com/mssql/server:2022-latest
+    environment:
+      ACCEPT_EULA: "Y"
+      MSSQL_SA_PASSWORD: Demo_Pass123
+    ports:
+      - "1434:1433"
+    volumes: *scripts
+    healthcheck:
+      test: ["CMD-SHELL", "/opt/mssql-tools18/bin/sqlcmd -C -S localhost -U sa -P Demo_Pass123 -Q 'SELECT 1' -b -o /dev/null"]
+      interval: 5s
+      timeout: 5s
+      retries: 40
+
+  liquibase:
+    # The official image bundles the PostgreSQL and MSSQL JDBC drivers, but not MySQL's
+    # (licensing). Baking it in once is faster than INSTALL_MYSQL=true, which downloads it on
+    # every container start.
+    build:
+      dockerfile_inline: |
+        FROM liquibase/liquibase:4.33
+        RUN lpm add mysql --global
+    image: liquibase-demo-liquibase:4.33
+    profiles: ["tools"]
+    volumes:
+      - ./scenarios:/scenarios:ro
+    environment:
+      LIQUIBASE_SHOW_BANNER: "false"
+      LIQUIBASE_ANALYTICS_ENABLED: "false"

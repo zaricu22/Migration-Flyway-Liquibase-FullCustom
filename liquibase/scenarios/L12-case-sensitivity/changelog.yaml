@@ -1,0 +1,53 @@
+databaseChangeLog:
+  # Mixed-case names with Liquibase's DEFAULT quoting strategy (LEGACY):
+  #   PostgreSQL: Liquibase QUOTES mixed-case names to preserve them -> "CustomerOrder"
+  #               -> every query must now write "CustomerOrder" with quotes, exactly like that
+  #   MySQL:      name kept; TABLE names are case-sensitive on Linux (lower_case_table_names=0)
+  #   SQL Server: name kept; lookups are case-insensitive (default collation *_CI_*)
+  - changeSet:
+      id: 1-create-customer-order-legacy
+      author: demo
+      changes:
+        - createTable:
+            tableName: CustomerOrder
+            columns:
+              - column:
+                  name: Id
+                  type: int
+                  constraints:
+                    primaryKey: true
+              - column:
+                  name: OrderDate
+                  type: date
+
+  # QUOTE_ONLY_RESERVED_WORDS: mixed-case names are NOT quoted -> PostgreSQL folds them to
+  # lower case (customerinvoice / invoicedate), and unquoted queries in any spelling work.
+  - changeSet:
+      id: 2-create-customer-invoice-folded
+      author: demo
+      objectQuotingStrategy: QUOTE_ONLY_RESERVED_WORDS
+      changes:
+        - createTable:
+            tableName: CustomerInvoice
+            columns:
+              - column:
+                  name: Id
+                  type: int
+                  constraints:
+                    primaryKey: true
+              - column:
+                  name: InvoiceDate
+                  type: date
+
+  - changeSet:
+      id: 3-insert
+      author: demo
+      changes:
+        - insert: { tableName: CustomerOrder, columns: [ { column: { name: Id, valueNumeric: 1 } }, { column: { name: OrderDate, valueDate: "2025-01-15" } } ] }
+
+  - changeSet:
+      id: 4-insert-folded
+      author: demo
+      objectQuotingStrategy: QUOTE_ONLY_RESERVED_WORDS
+      changes:
+        - insert: { tableName: CustomerInvoice, columns: [ { column: { name: Id, valueNumeric: 1 } }, { column: { name: InvoiceDate, valueDate: "2025-01-20" } } ] }

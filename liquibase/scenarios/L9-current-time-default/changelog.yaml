@@ -1,0 +1,94 @@
+databaseChangeLog:
+  # What works everywhere: defaultValueComputed CURRENT_TIMESTAMP on a plain "timestamp".
+  # Liquibase translates it to now() / NOW() / GETDATE().
+  # What does NOT: NOW() (not translated for SQL Server), CURRENT_DATE (MySQL needs parentheses,
+  # SQL Server 2022 doesn't know it), fractional precision (MySQL requires NOW(6) for datetime(6)).
+  - property: { name: ts6_type, value: timestamp(6),                dbms: postgresql }
+  - property: { name: ts6_type, value: datetime(6),                 dbms: mysql }
+  - property: { name: ts6_type, value: datetime2(6),                dbms: mssql }
+  - property: { name: now6,     value: CURRENT_TIMESTAMP,           dbms: postgresql }
+  - property: { name: now6,     value: CURRENT_TIMESTAMP(6),        dbms: mysql }
+  - property: { name: now6,     value: SYSDATETIME(),               dbms: mssql }
+  - property: { name: today,    value: CURRENT_DATE,                dbms: postgresql }
+  - property: { name: today,    value: (CURRENT_DATE),              dbms: mysql }
+  - property: { name: today,    value: CAST(GETDATE() AS date),     dbms: mssql }
+
+  - changeSet:
+      id: 1-create-audit-event
+      author: demo
+      changes:
+        - createTable:
+            tableName: audit_event
+            columns:
+              - column:
+                  name: id
+                  type: int
+                  constraints:
+                    primaryKey: true
+              - column:
+                  name: note
+                  type: varchar(50)
+              # portable, second precision on MySQL, 3.33 ms steps on SQL Server's "timestamp" mapping
+              - column:
+                  name: created_at
+                  type: timestamp
+                  defaultValueComputed: CURRENT_TIMESTAMP
+              # microseconds everywhere, needs per-engine type AND function
+              - column:
+                  name: created_at_precise
+                  type: ${ts6_type}
+                  defaultValueComputed: ${now6}
+              - column:
+                  name: created_on
+                  type: date
+                  defaultValueComputed: ${today}
+              - column:
+                  name: updated_at
+                  type: ${ts6_type}
+                  defaultValueComputed: ${now6}
+
+  # "updated_at = now() on every UPDATE": built into MySQL, a trigger elsewhere.
+  - changeSet:
+      id: 2-updated-at-mysql
+      author: demo
+      dbms: mysql
+      changes:
+        - sql:
+            sql: >
+              ALTER TABLE audit_event MODIFY updated_at datetime(6) NULL
+              DEFAULT CURRENT_TIMESTAMP(6) ON UPDATE CURRENT_TIMESTAMP(6)
+
+  # A PL/pgSQL body contains ";" -> splitStatements: false, or Liquibase cuts it into pieces.
+  - changeSet:
+      id: 2-updated-at-postgresql
+      author: demo
+      dbms: postgresql
+      changes:
+        - sql:
+            splitStatements: false
+            sql: |
+              CREATE FUNCTION audit_event_touch() RETURNS trigger LANGUAGE plpgsql AS $$
+              BEGIN
+                  NEW.updated_at := clock_timestamp();
+                  RETURN NEW;
+              END $$
+        - sql:
+            sql: >
+              CREATE TRIGGER audit_event_touch BEFORE UPDATE ON audit_event
+              FOR EACH ROW EXECUTE FUNCTION audit_event_touch()
+
+  # T-SQL: CREATE TRIGGER must be the only statement in its batch -> its own sql change.
+  - changeSet:
+      id: 2-updated-at-mssql
+      author: demo
+      dbms: mssql
+      changes:
+        - sql:
+            splitStatements: false
+            sql: |
+              CREATE TRIGGER audit_event_touch ON audit_event AFTER UPDATE AS
+              BEGIN
+                  SET NOCOUNT ON;
+                  UPDATE a SET updated_at = SYSDATETIME()
+                  FROM audit_event a JOIN inserted i ON i.id = a.id;
+              END

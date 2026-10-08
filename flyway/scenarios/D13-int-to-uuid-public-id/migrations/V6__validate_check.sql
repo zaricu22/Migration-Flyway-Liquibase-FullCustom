@@ -1,0 +1,1 @@
+ALTER TABLE customer VALIDATE CONSTRAINT customer_public_id_not_null;

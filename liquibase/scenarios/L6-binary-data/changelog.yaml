@@ -1,0 +1,50 @@
+databaseChangeLog:
+  # The abstract "blob" becomes an OID (large-object reference) on PostgreSQL, not bytes in the row.
+  # Choose the "bytes in the row" type explicitly:
+  - property: { name: binary_type, value: bytea,          dbms: postgresql }
+  - property: { name: binary_type, value: longblob,       dbms: mysql }
+  - property: { name: binary_type, value: varbinary(max), dbms: mssql }
+
+  - changeSet:
+      id: 1-create-attachment
+      author: demo
+      changes:
+        - createTable:
+            tableName: attachment
+            columns:
+              - column:
+                  name: id
+                  type: int
+                  constraints:
+                    primaryKey: true
+              - column:
+                  name: file_name
+                  type: varchar(100)
+              - column:
+                  name: content
+                  type: ${binary_type}
+
+  # valueBlobFile: Liquibase reads the file and sends it as a binary JDBC parameter:
+  # no hex literals (X'..' / 0x.. / '\x..' differ per engine) in the changelog.
+  - changeSet:
+      id: 2-insert-logo
+      author: demo
+      changes:
+        - insert:
+            tableName: attachment
+            columns:
+              - column: { name: id, valueNumeric: 1 }
+              - column: { name: file_name, value: logo.png }
+              - column: { name: content, valueBlobFile: logo.png }
+
+  # The naive abstract type, for comparison. On PostgreSQL this creates an "oid" column.
+  - changeSet:
+      id: 3-naive-blob-column
+      author: demo
+      changes:
+        - addColumn:
+            tableName: attachment
+            columns:
+              - column:
+                  name: content_naive
+                  type: blob

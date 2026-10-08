@@ -1,0 +1,86 @@
+databaseChangeLog:
+  # Three different enum models:
+  #   PostgreSQL  a named TYPE, created before the table
+  #   MySQL       an inline column type ENUM(...)
+  #   SQL Server  no enum at all -> varchar + CHECK constraint
+  - property: { name: status_type, value: order_status,                        dbms: postgresql }
+  - property: { name: status_type, value: "ENUM('new', 'paid', 'shipped')",    dbms: mysql }
+  - property: { name: status_type, value: varchar(20),                         dbms: mssql }
+
+  - changeSet:
+      id: 1-create-enum-type
+      author: demo
+      dbms: postgresql
+      changes:
+        - sql:
+            sql: CREATE TYPE order_status AS ENUM ('new', 'paid', 'shipped')
+
+  - changeSet:
+      id: 2-create-orders
+      author: demo
+      changes:
+        - createTable:
+            tableName: orders
+            columns:
+              - column:
+                  name: id
+                  type: int
+                  constraints:
+                    primaryKey: true
+              - column:
+                  name: status
+                  type: ${status_type}
+                  defaultValue: new
+                  constraints:
+                    nullable: false
+
+  - changeSet:
+      id: 3-mssql-status-check
+      author: demo
+      dbms: mssql
+      changes:
+        - sql:
+            sql: ALTER TABLE orders ADD CONSTRAINT ck_orders_status CHECK (status IN ('new', 'paid', 'shipped'))
+
+  - changeSet:
+      id: 4-insert-orders
+      author: demo
+      changes:
+        - insert: { tableName: orders, columns: [ { column: { name: id, valueNumeric: 1 } } ] }
+        - insert: { tableName: orders, columns: [ { column: { name: id, valueNumeric: 2 } }, { column: { name: status, value: shipped } } ] }
+        - insert: { tableName: orders, columns: [ { column: { name: id, valueNumeric: 3 } }, { column: { name: status, value: paid } } ] }
+
+  # Adding a value later: three completely different statements.
+  - changeSet:
+      id: 5-add-cancelled-postgresql
+      author: demo
+      dbms: postgresql
+      changes:
+        - sql:
+            sql: ALTER TYPE order_status ADD VALUE 'cancelled'
+  - changeSet:
+      id: 5-add-cancelled-mysql
+      author: demo
+      dbms: mysql
+      changes:
+        # MODIFY redefines the WHOLE column: repeat every value, NOT NULL and the default,
+        # or they are lost.
+        - sql:
+            sql: ALTER TABLE orders MODIFY status ENUM('new', 'paid', 'shipped', 'cancelled') NOT NULL DEFAULT 'new'
+  - changeSet:
+      id: 5-add-cancelled-mssql
+      author: demo
+      dbms: mssql
+      changes:
+        - sql:
+            sql: >
+              ALTER TABLE orders DROP CONSTRAINT ck_orders_status;
+              ALTER TABLE orders ADD CONSTRAINT ck_orders_status CHECK (status IN ('new', 'paid', 'shipped', 'cancelled'))
+
+  # Separate changeset = separate transaction (PostgreSQL can't use a new enum value in the
+  # transaction that added it).
+  - changeSet:
+      id: 6-insert-cancelled
+      author: demo
+      changes:
+        - insert: { tableName: orders, columns: [ { column: { name: id, valueNumeric: 4 } }, { column: { name: status, value: cancelled } } ] }

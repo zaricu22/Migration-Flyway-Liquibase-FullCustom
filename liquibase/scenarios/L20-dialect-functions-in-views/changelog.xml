@@ -1,0 +1,86 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<databaseChangeLog
+        xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+        xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+        xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog
+            http://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-latest.xsd">
+
+    <changeSet id="1-create-customer" author="demo">
+        <createTable tableName="customer">
+            <column name="id" type="int"><constraints primaryKey="true"/></column>
+            <column name="first_name" type="varchar(50)"/>
+            <column name="last_name" type="varchar(50)"/>
+            <column name="created_at" type="datetime"/>
+        </createTable>
+    </changeSet>
+
+    <changeSet id="2-insert-customers" author="demo">
+        <insert tableName="customer">
+            <column name="id" valueNumeric="1"/>
+            <column name="first_name" value="Ana"/>
+            <column name="last_name" value="Petrovic"/>
+            <column name="created_at" valueDate="2020-01-01T10:00:00"/>
+        </insert>
+        <insert tableName="customer">
+            <column name="id" valueNumeric="2"/>
+            <column name="first_name" value="Cher"/>
+            <column name="created_at" valueComputed="CURRENT_TIMESTAMP"/>
+        </insert>
+        <insert tableName="customer">
+            <column name="id" valueNumeric="3"/>
+            <column name="first_name" value="Marko"/>
+            <column name="last_name" value="Jovic"/>
+            <column name="created_at" valueComputed="CURRENT_TIMESTAMP"/>
+        </insert>
+        <insert tableName="customer">
+            <column name="id" valueNumeric="4"/>
+            <column name="first_name" value="Ivan"/>
+            <column name="last_name" value="Ilic"/>
+            <column name="created_at" valueDate="2024-06-01T10:00:00"/>
+        </insert>
+    </changeSet>
+
+    <!-- PORTABLE: one view for all engines. Views are "repeatable": runOnChange re-applies the changeset
+         even if its text changes, replaceIfExists turns it into CREATE OR REPLACE / ALTER (if new or exist).
+           CONCAT(a, ' ', b)      exists everywhere, BUT MySQL returns NULL if any argument is NULL
+           CONCAT_WS(' ', a, b)   exists everywhere and skips NULLs everywhere -> the portable choice
+           ||                     string concat in PostgreSQL, logical OR in MySQL, error in SQL Server -->
+    <changeSet id="3-view-customer-display" author="demo" runOnChange="true">
+        <createView viewName="customer_display" replaceIfExists="true">
+            SELECT id,
+                   CONCAT(first_name, ' ', last_name)    AS name_concat,
+                   CONCAT_WS(' ', first_name, last_name) AS name_concat_ws
+            FROM customer
+        </createView>
+    </changeSet>
+
+    <!-- Date arithmetic: no common syntax -> one view definition per engine. -->
+    <changeSet id="4-view-recent-customer-postgresql" author="demo" dbms="postgresql" runOnChange="true">
+        <createView viewName="recent_customer" replaceIfExists="true">
+            SELECT id, first_name FROM customer WHERE created_at &gt; now() - interval '30 days'
+        </createView>
+    </changeSet>
+    <changeSet id="4-view-recent-customer-mysql" author="demo" dbms="mysql" runOnChange="true">
+        <createView viewName="recent_customer" replaceIfExists="true">
+            SELECT id, first_name FROM customer WHERE created_at &gt; NOW() - INTERVAL 30 DAY
+        </createView>
+    </changeSet>
+    <changeSet id="4-view-recent-customer-mssql" author="demo" dbms="mssql" runOnChange="true">
+        <createView viewName="recent_customer" replaceIfExists="true">
+            SELECT id, first_name FROM customer WHERE created_at &gt; DATEADD(day, -30, GETDATE())
+        </createView>
+    </changeSet>
+
+    <!-- Row limiting: LIMIT (PostgreSQL, MySQL) vs TOP (SQL Server).
+         (ANSI FETCH FIRST works in PostgreSQL, not in MySQL; SQL Server needs OFFSET ... FETCH NEXT.) -->
+    <changeSet id="5-view-oldest-customers" author="demo" dbms="postgresql, mysql" runOnChange="true">
+        <createView viewName="oldest_customers" replaceIfExists="true">
+            SELECT id, first_name, created_at FROM customer ORDER BY created_at LIMIT 2
+        </createView>
+    </changeSet>
+    <changeSet id="5-view-oldest-customers-mssql" author="demo" dbms="mssql" runOnChange="true">
+        <createView viewName="oldest_customers" replaceIfExists="true">
+            SELECT TOP 2 id, first_name, created_at FROM customer ORDER BY created_at
+        </createView>
+    </changeSet>
+</databaseChangeLog>

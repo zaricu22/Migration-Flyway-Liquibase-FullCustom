@@ -1,0 +1,38 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<databaseChangeLog
+        xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+        xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+        xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog
+            http://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-latest.xsd">
+
+    <!-- The abstract "timestamp with time zone" is a SYNTAX ERROR on MySQL and silently becomes
+         datetime2 (offset dropped!) on SQL Server. Choose explicitly:
+           PostgreSQL  timestamptz        stores an absolute instant (UTC internally)
+           MySQL       datetime(6)        no time zone support at all -> convention: store UTC
+           SQL Server  datetimeoffset(6)  stores the local time AND its offset -->
+    <property name="tstz_type" value="timestamptz"       dbms="postgresql"/>
+    <property name="tstz_type" value="datetime(6)"       dbms="mysql"/>
+    <property name="tstz_type" value="datetimeoffset(6)" dbms="mssql"/>
+
+    <changeSet id="1-create-meeting" author="demo">
+        <createTable tableName="meeting">
+            <column name="id" type="int">
+                <constraints primaryKey="true"/>
+            </column>
+            <column name="title" type="varchar(100)"/>
+            <column name="starts_at" type="${tstz_type}"/>
+            <!-- The naive choice: abstract "timestamp" -> PostgreSQL timestamp (no zone),
+                 MySQL TIMESTAMP (UTC-converted, ends in 2038), SQL Server datetime2 (no zone). -->
+            <column name="starts_at_naive" type="timestamp"/>
+        </createTable>
+    </changeSet>
+
+    <!-- One statement for all engines, with an explicit offset in the literal (+02:00, Belgrade summer).
+         Each engine does something different with that offset. See the README. -->
+    <changeSet id="2-insert-meeting" author="demo">
+        <sql>
+            INSERT INTO meeting (id, title, starts_at, starts_at_naive)
+            VALUES (1, 'Standup', '2025-07-01 12:00:00+02:00', '2025-07-01 12:00:00+02:00')
+        </sql>
+    </changeSet>
+</databaseChangeLog>

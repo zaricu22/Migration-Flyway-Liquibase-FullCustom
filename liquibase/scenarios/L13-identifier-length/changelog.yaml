@@ -1,0 +1,63 @@
+databaseChangeLog:
+  # Maximum identifier length: PostgreSQL 63 bytes (longer names are silently TRUNCATED),
+  # MySQL 64 characters (longer -> error), SQL Server 128 characters.
+  - changeSet:
+      id: 1-create-shipment-event
+      author: demo
+      changes:
+        - createTable:
+            tableName: shipment_event
+            columns:
+              - column:
+                  name: id
+                  type: int
+                  constraints:
+                    primaryKey: true
+              - column: { name: carrier_code, type: varchar(10) }
+              - column: { name: status, type: varchar(20) }
+              - column: { name: created_on, type: date }
+              - column: { name: region, type: varchar(10) }
+
+  # A 64-character index name (a typical "generated from the column list" name).
+  #   PostgreSQL: NOTICE identifier ... will be truncated -> stored with 63 characters
+  #   MySQL: exactly at the limit -> OK     SQL Server: OK
+  - changeSet:
+      id: 2-create-long-index
+      author: demo
+      changes:
+        - createIndex:
+            tableName: shipment_event
+            indexName: ix_shipment_tracking_event_carrier_code_status_created_on_region
+            columns:
+              - column: { name: carrier_code }
+              - column: { name: status }
+              - column: { name: created_on }
+              - column: { name: region }
+
+  # The consequence: Liquibase compares the name from the changelog (64 chars) with the name in
+  # the catalog. On PostgreSQL they no longer match -> the precondition says "doesn't exist"
+  # -> MARK_RAN -> the index is silently NOT dropped. MySQL / SQL Server drop it.
+  - changeSet:
+      id: 3-drop-long-index-if-exists
+      author: demo
+      preConditions:
+        - onFail: MARK_RAN
+        - indexExists:
+            tableName: shipment_event
+            indexName: ix_shipment_tracking_event_carrier_code_status_created_on_region
+      changes:
+        - dropIndex:
+            tableName: shipment_event
+            indexName: ix_shipment_tracking_event_carrier_code_status_created_on_region
+
+  # The fix: names that fit everywhere (<= 30 characters is a safe habit; Oracle < 12.2 had 30).
+  - changeSet:
+      id: 4-create-short-index
+      author: demo
+      changes:
+        - createIndex:
+            tableName: shipment_event
+            indexName: ix_shipment_event_lookup
+            columns:
+              - column: { name: carrier_code }
+              - column: { name: status }

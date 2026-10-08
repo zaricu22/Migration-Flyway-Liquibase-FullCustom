@@ -1,0 +1,55 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<databaseChangeLog
+        xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+        xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+        xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog
+            http://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-latest.xsd">
+
+    <!-- loadUpdateData = portable upsert from a CSV: Liquibase generates a different strategy per
+         engine (see README). Raw SQL (changeset 4) needs one variant per engine. -->
+    <changeSet id="1-create-product-price" author="demo">
+        <createTable tableName="product_price">
+            <column name="sku" type="varchar(20)"><constraints primaryKey="true"/></column>
+            <column name="price" type="decimal(10,2)"><constraints nullable="false"/></column>
+            <column name="updated_by" type="varchar(20)"/>
+        </createTable>
+    </changeSet>
+
+    <changeSet id="2-load-initial-prices" author="demo">
+        <loadData tableName="product_price" file="prices_initial.csv" relativeToChangelogFile="true" separator=";"/>
+    </changeSet>
+
+    <changeSet id="3-upsert-prices" author="demo">
+        <loadUpdateData tableName="product_price" file="prices_update.csv" relativeToChangelogFile="true"
+                        separator=";" primaryKey="sku"/>
+    </changeSet>
+
+    <!-- Native upsert syntax in raw SQL: one variant per engine.
+         Upserts 'A' (exists -> update) and 'D' (new -> insert) in one statement. -->
+    <changeSet id="4-native-upsert-postgresql" author="demo" dbms="postgresql">
+        <sql>
+            INSERT INTO product_price (sku, price, updated_by)
+            VALUES ('A', 15.00, 'native'), ('D', 40.00, 'native')
+            ON CONFLICT (sku) DO UPDATE
+            SET price = EXCLUDED.price, updated_by = EXCLUDED.updated_by
+        </sql>
+    </changeSet>
+    <!-- 8.0.19+ row alias ("AS new"); the older VALUES(col) form is deprecated. -->
+    <changeSet id="4-native-upsert-mysql" author="demo" dbms="mysql">
+        <sql>
+            INSERT INTO product_price (sku, price, updated_by)
+            VALUES ('A', 15.00, 'native'), ('D', 40.00, 'native') AS new
+            ON DUPLICATE KEY UPDATE price = new.price, updated_by = new.updated_by
+        </sql>
+    </changeSet>
+    <!-- MERGE must end with a semicolon. HOLDLOCK makes it safe against concurrent inserts. -->
+    <changeSet id="4-native-upsert-mssql" author="demo" dbms="mssql">
+        <sql>
+            MERGE product_price WITH (HOLDLOCK) AS t
+            USING (VALUES ('A', 15.00, 'native'), ('D', 40.00, 'native')) AS s (sku, price, updated_by)
+            ON t.sku = s.sku
+            WHEN MATCHED THEN UPDATE SET price = s.price, updated_by = s.updated_by
+            WHEN NOT MATCHED THEN INSERT (sku, price, updated_by) VALUES (s.sku, s.price, s.updated_by);
+        </sql>
+    </changeSet>
+</databaseChangeLog>

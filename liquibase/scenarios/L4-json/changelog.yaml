@@ -1,0 +1,80 @@
+databaseChangeLog:
+  # The abstract "json" type fails on SQL Server 2022 (no json type until SQL Server 2025).
+  # -> choose the storage per engine with a property.
+  - property: { name: json_type, value: jsonb,         dbms: postgresql }
+  - property: { name: json_type, value: json,          dbms: mysql }
+  - property: { name: json_type, value: nvarchar(max), dbms: mssql }
+
+  - changeSet:
+      id: 1-create-event
+      author: demo
+      changes:
+        - createTable:
+            tableName: event
+            columns:
+              - column:
+                  name: id
+                  type: int
+                  constraints:
+                    primaryKey: true
+              - column:
+                  name: payload
+                  type: ${json_type}
+                  constraints:
+                    nullable: false
+
+  # SQL Server stores plain text: only a CHECK with ISJSON() rejects invalid documents.
+  - changeSet:
+      id: 2-mssql-json-check
+      author: demo
+      dbms: mssql
+      changes:
+        - sql:
+            sql: ALTER TABLE event ADD CONSTRAINT ck_event_payload_is_json CHECK (ISJSON(payload) = 1)
+
+  - changeSet:
+      id: 3-insert-events
+      author: demo
+      changes:
+        - insert:
+            tableName: event
+            columns:
+              - column: { name: id, valueNumeric: 1 }
+              - column: { name: payload, value: '{"type": "login", "user": {"id": 7, "name": "Ana"}, "tags": ["web", "mobile"]}' }
+        - insert:
+            tableName: event
+            columns:
+              - column: { name: id, valueNumeric: 2 }
+              - column: { name: payload, value: '{"type": "purchase", "user": {"id": 9, "name": "Marko"}, "amount": 49.90}' }
+
+  # Reading a nested field: three different syntaxes -> one createView per engine.
+  - changeSet:
+      id: 4-view-event-user-postgresql
+      author: demo
+      dbms: postgresql
+      changes:
+        - createView:
+            viewName: event_user
+            selectQuery: >
+              SELECT id, payload ->> 'type' AS event_type, payload -> 'user' ->> 'name' AS user_name
+              FROM event
+  - changeSet:
+      id: 4-view-event-user-mysql
+      author: demo
+      dbms: mysql
+      changes:
+        - createView:
+            viewName: event_user
+            selectQuery: >
+              SELECT id, payload ->> '$.type' AS event_type, payload ->> '$.user.name' AS user_name
+              FROM event
+  - changeSet:
+      id: 4-view-event-user-mssql
+      author: demo
+      dbms: mssql
+      changes:
+        - createView:
+            viewName: event_user
+            selectQuery: >
+              SELECT id, JSON_VALUE(payload, '$.type') AS event_type, JSON_VALUE(payload, '$.user.name') AS user_name
+              FROM event

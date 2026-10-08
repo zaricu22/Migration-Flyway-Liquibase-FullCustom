@@ -1,0 +1,36 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<databaseChangeLog
+        xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+        xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+        xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog
+            http://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-latest.xsd">
+
+    <!-- Abstract type "uuid": PostgreSQL uuid (16 bytes), MySQL char(36) (text!), SQL Server uniqueidentifier. -->
+    <changeSet id="1-create-api-key" author="demo">
+        <createTable tableName="api_key">
+            <column name="id" type="uuid">
+                <constraints primaryKey="true"/>
+            </column>
+            <column name="name" type="varchar(100)">
+                <constraints nullable="false"/>
+            </column>
+        </createTable>
+    </changeSet>
+
+    <!-- Chosen so that the SORT ORDER differs: SQL Server compares uniqueidentifier starting with
+         the LAST 6 bytes, not left to right like PostgreSQL (binary) and MySQL (text). -->
+    <changeSet id="2-insert-keys" author="demo">
+        <insert tableName="api_key">
+            <column name="id" value="10000000-0000-0000-0000-000000000001"/>
+            <column name="name" value="first group 1, last group 1"/>
+        </insert>
+        <insert tableName="api_key">
+            <column name="id" value="00000000-0000-0000-0000-000000000002"/>
+            <column name="name" value="first group 0, last group 2"/>
+        </insert>
+        <insert tableName="api_key">
+            <column name="id" value="20000000-0000-0000-0000-000000000000"/>
+            <column name="name" value="first group 2, last group 0"/>
+        </insert>
+    </changeSet>
+</databaseChangeLog>

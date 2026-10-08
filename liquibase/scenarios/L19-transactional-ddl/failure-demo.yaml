@@ -1,0 +1,26 @@
+databaseChangeLog:
+  # ANTI-PATTERN: two DDL statements in one changeset, and the second one fails
+  # (FK to a table that doesn't exist).
+  #   PostgreSQL, SQL Server: DDL is transactional -> the whole changeset rolls back, ledger is gone too.
+  #   MySQL: every DDL statement COMMITS IMPLICITLY -> ledger stays, the changeset is not recorded,
+  #          and the next run fails with "Table 'ledger' already exists". Stuck until fixed by hand.
+  - changeSet:
+      id: 1-create-ledger-tables
+      author: demo
+      changes:
+        - createTable:
+            tableName: ledger
+            columns:
+              - column: { name: id, type: int, constraints: { primaryKey: true } }
+              - column: { name: name, type: varchar(50) }
+        - createTable:
+            tableName: ledger_entry
+            columns:
+              - column: { name: id, type: int, constraints: { primaryKey: true } }
+              - column:
+                  name: account_id
+                  type: int
+                  constraints:
+                    foreignKeyName: fk_entry_account
+                    referencedTableName: account_that_does_not_exist
+                    referencedColumnNames: id

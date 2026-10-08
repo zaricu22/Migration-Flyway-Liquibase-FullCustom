@@ -1,0 +1,54 @@
+databaseChangeLog:
+  # Two identical tables. Both get the same rename + type change;
+  # only "person" gets the follow-up fixes. Compare them afterwards.
+  - changeSet:
+      id: 1-create-tables
+      author: demo
+      changes:
+        - createTable:
+            tableName: person_naive
+            columns:
+              - column: { name: id, type: int, constraints: { primaryKey: true } }
+              - column: { name: surname, type: varchar(50), defaultValue: unknown, constraints: { nullable: false } }
+        - createTable:
+            tableName: person
+            columns:
+              - column: { name: id, type: int, constraints: { primaryKey: true } }
+              - column: { name: surname, type: varchar(50), defaultValue: unknown, constraints: { nullable: false } }
+
+  # renameColumn: PostgreSQL/SQL Server rename in place (RENAME COLUMN / sp_rename).
+  # MySQL: Liquibase needs columnDataType because it generates "CHANGE old new <full definition>".
+  - changeSet:
+      id: 2-rename-column
+      author: demo
+      changes:
+        - renameColumn: { tableName: person_naive, oldColumnName: surname, newColumnName: last_name, columnDataType: varchar(50) }
+        - renameColumn: { tableName: person,       oldColumnName: surname, newColumnName: last_name, columnDataType: varchar(50) }
+
+  # modifyDataType: widen varchar(50) -> varchar(100).
+  #   PostgreSQL  ALTER COLUMN ... TYPE         keeps NOT NULL and DEFAULT
+  #   MySQL       MODIFY ... VARCHAR(100)        REDEFINES the column: NOT NULL and DEFAULT are gone
+  #   SQL Server  ALTER COLUMN ... varchar(100)  NOT NULL is gone (default constraint survives)
+  - changeSet:
+      id: 3-widen-column
+      author: demo
+      changes:
+        - modifyDataType: { tableName: person_naive, columnName: last_name, newDataType: varchar(100) }
+        - modifyDataType: { tableName: person,       columnName: last_name, newDataType: varchar(100) }
+
+  # The fix, portable: restate what the engine may have dropped.
+  # addNotNullConstraint needs columnDataType on MySQL and SQL Server (both redefine the column).
+  - changeSet:
+      id: 4-restore-not-null
+      author: demo
+      changes:
+        - addNotNullConstraint: { tableName: person, columnName: last_name, columnDataType: varchar(100), defaultNullValue: unknown }
+
+  # The default only got lost on MySQL (SQL Server keeps its separate default constraint,
+  # re-adding it there would fail with "column already has a DEFAULT").
+  - changeSet:
+      id: 5-restore-default-mysql
+      author: demo
+      dbms: mysql
+      changes:
+        - addDefaultValue: { tableName: person, columnName: last_name, columnDataType: varchar(100), defaultValue: unknown }

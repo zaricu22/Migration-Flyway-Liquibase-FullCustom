@@ -1,0 +1,40 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<databaseChangeLog
+        xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+        xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+        xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog
+            http://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-latest.xsd">
+
+    <!-- Portable Unicode text through per-engine PROPERTIES.
+         On SQL Server only the N-types (nvarchar) store Unicode; varchar uses the collation's code page. -->
+    <property name="unicode_string" value="varchar"       dbms="postgresql, mysql"/>
+    <property name="unicode_string" value="nvarchar"      dbms="mssql"/>
+    <property name="unicode_text"   value="text"          dbms="postgresql"/>
+    <property name="unicode_text"   value="longtext"      dbms="mysql"/>
+    <property name="unicode_text"   value="nvarchar(max)" dbms="mssql"/>
+
+    <changeSet id="1-create-article" author="demo">
+        <createTable tableName="article">
+            <column name="id" type="int">
+                <constraints primaryKey="true"/>
+            </column>
+            <column name="title" type="${unicode_string}(200)"/>
+            <column name="body" type="${unicode_text}"/>
+            <!-- The naive choice: abstract "text". SQL Server -> varchar(max) (NOT Unicode),
+                 MySQL -> TEXT (max 65,535 BYTES, i.e. ~16k emoji). -->
+            <column name="body_naive" type="text"/>
+        </createTable>
+    </changeSet>
+
+    <!-- loadData sends values as JDBC parameters (Unicode-safe on every engine).
+         A literal in raw SQL would need the N'...' prefix on SQL Server. -->
+    <changeSet id="2-load-articles" author="demo">
+        <loadData tableName="article" file="articles.csv" relativeToChangelogFile="true"
+                  separator=";" encoding="UTF-8">
+            <column name="id" type="numeric"/>
+            <column name="title" type="string"/>
+            <column name="body" type="string"/>
+            <column name="body_naive" type="string"/>
+        </loadData>
+    </changeSet>
+</databaseChangeLog>

@@ -1,0 +1,37 @@
+name: flyway-demo
+
+services:
+  postgres:
+    image: postgres:17
+    environment:
+      POSTGRES_DB: demo
+      POSTGRES_USER: demo
+      POSTGRES_PASSWORD: demo
+    ports:
+      - "5433:5432"
+    volumes:
+      # verify.sql / app_vN.sql / demo_*.sql are executed by psql inside this container
+      - ./scenarios:/scenarios:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U demo -d demo"]
+      interval: 2s
+      timeout: 3s
+      retries: 30
+
+  flyway:
+    image: flyway/flyway:11
+    profiles: ["tools"]
+    volumes:
+      - ./scenarios:/scenarios:ro
+    environment:
+      FLYWAY_URL: jdbc:postgresql://postgres:5432/demo
+      FLYWAY_USER: demo
+      FLYWAY_PASSWORD: demo
+      FLYWAY_CLEAN_DISABLED: "false"
+      # Flyway's default transactional advisory lock keeps a transaction open for the whole run.
+      # CREATE INDEX CONCURRENTLY waits for every open transaction to finish -> it would wait for
+      # Flyway itself forever. A session-level lock avoids that deadlock.
+      FLYWAY_POSTGRESQL_TRANSACTIONAL_LOCK: "false"
+    depends_on:
+      postgres:
+        condition: service_healthy

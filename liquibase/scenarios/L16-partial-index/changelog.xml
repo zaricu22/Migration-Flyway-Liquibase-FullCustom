@@ -1,0 +1,37 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<databaseChangeLog
+        xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+        xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+        xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog
+            http://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-latest.xsd">
+
+    <!-- Requirement: an email must be unique among ACTIVE accounts only. Soft-deleted accounts
+         (deleted_at set) may reuse it. That needs a partial ("filtered") unique index. -->
+    <changeSet id="1-create-account" author="demo">
+        <createTable tableName="account">
+            <column name="id" type="int">
+                <constraints primaryKey="true"/>
+            </column>
+            <column name="email" type="varchar(100)">
+                <constraints nullable="false"/>
+            </column>
+            <column name="deleted_at" type="datetime"/>
+        </createTable>
+    </changeSet>
+
+    <!-- PostgreSQL (partial index) and SQL Server (filtered index) happen to share the syntax.
+         Liquibase's createIndex has no WHERE clause in the open-source edition -> raw SQL. -->
+    <changeSet id="2-unique-active-email" author="demo" dbms="postgresql, mssql">
+        <sql>CREATE UNIQUE INDEX ux_account_email_active ON account (email) WHERE deleted_at IS NULL</sql>
+    </changeSet>
+
+    <!-- MySQL has no partial indexes. Workaround: a generated column that holds the email only for
+         active rows (NULL otherwise) + a normal unique index on it. Unique indexes allow many NULLs. -->
+    <changeSet id="2-unique-active-email-mysql" author="demo" dbms="mysql">
+        <sql>
+            ALTER TABLE account ADD COLUMN active_email varchar(100)
+            GENERATED ALWAYS AS (CASE WHEN deleted_at IS NULL THEN email END) VIRTUAL
+        </sql>
+        <sql>CREATE UNIQUE INDEX ux_account_email_active ON account (active_email)</sql>
+    </changeSet>
+</databaseChangeLog>

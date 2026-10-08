@@ -1,0 +1,34 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<databaseChangeLog
+        xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+        xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+        xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog
+            http://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-latest.xsd">
+
+    <!-- Requirement: 'Ana@Example.com' and 'ana@example.com' are the SAME subscriber.
+           MySQL / SQL Server: the default collation is already case-INsensitive -> a plain unique index
+           PostgreSQL: comparisons are case-sensitive -> unique index on lower(email) -->
+    <changeSet id="1-create-subscriber" author="demo">
+        <createTable tableName="subscriber">
+            <column name="id" type="int">
+                <constraints primaryKey="true"/>
+            </column>
+            <column name="email" type="varchar(100)">
+                <constraints nullable="false"/>
+            </column>
+        </createTable>
+    </changeSet>
+
+    <!-- Expression (functional) index: Liquibase supports it with computed="true". -->
+    <changeSet id="2-unique-email-postgresql" author="demo" dbms="postgresql">
+        <createIndex tableName="subscriber" indexName="ux_subscriber_email" unique="true">
+            <column name="lower(email)" computed="true"/>
+        </createIndex>
+    </changeSet>
+
+    <changeSet id="2-unique-email-mysql-mssql" author="demo" dbms="mysql, mssql">
+        <createIndex tableName="subscriber" indexName="ux_subscriber_email" unique="true">
+            <column name="email"/>
+        </createIndex>
+    </changeSet>
+</databaseChangeLog>

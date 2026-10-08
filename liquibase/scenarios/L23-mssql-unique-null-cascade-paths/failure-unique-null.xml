@@ -1,0 +1,27 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<databaseChangeLog
+        xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+        xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+        xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog
+            http://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-latest.xsd">
+
+    <!-- WHAT GOES WRONG (1): a UNIQUE constraint on a nullable column.
+         PostgreSQL and MySQL: NULLs are never equal, so any number of NULLs is allowed.
+         SQL Server: NULL counts as a value -> only ONE row may have NULL. -->
+    <changeSet id="1-create-customer" author="demo">
+        <createTable tableName="customer">
+            <column name="id" type="int"><constraints primaryKey="true"/></column>
+            <column name="tax_number" type="varchar(20)"/>
+        </createTable>
+    </changeSet>
+
+    <changeSet id="2-unique-tax-number" author="demo">
+        <addUniqueConstraint tableName="customer" columnNames="tax_number" constraintName="uq_customer_tax_number"/>
+    </changeSet>
+
+    <!-- SQL Server: "Violation of UNIQUE KEY constraint ... The duplicate key value is (<NULL>)." -->
+    <changeSet id="3-seed-customers-without-tax-number" author="demo">
+        <insert tableName="customer"><column name="id" valueNumeric="1"/></insert>
+        <insert tableName="customer"><column name="id" valueNumeric="2"/></insert>
+    </changeSet>
+</databaseChangeLog>
